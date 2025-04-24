@@ -14,3 +14,16 @@ go build -o plugin-host
 ## Run Plugin Host
 
 ./plugin-host 
+
+# Approach 2 - Hashicorp go plugin
+
+# Build Plugins and Host
+
+go mod tidy
+go build -o bin/addheader ./plugins/addheader
+go build -o bin/removeheader ./plugins/removeheader
+go build -o bin/host ./host
+
+cd bin
+./host
+
