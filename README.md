@@ -27,3 +27,20 @@ go build -o bin/host ./host
 cd bin
 ./host
 
+## approach2-extended(varied dependency check)
+
+### sync modules
+go work sync
+
+### Build plugins (each uses its own uuid version)
+go build -o plugins/addheader/addheader ./plugins/addheader
+go build -o plugins/removeheader/removeheader ./plugins/removeheader
+
+add the generated plugins to host/plugins directory
+
+### Build host (uses uuid v1.0.0)
+go build -o host ./host
+
+### Run host
+./host
+

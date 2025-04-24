@@ -1,0 +1,8 @@
+go 1.24
+
+use (
+	./host
+	./plugins/addheader
+	./plugins/removeheader
+	./policy
+)
