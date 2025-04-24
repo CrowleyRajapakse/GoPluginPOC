@@ -44,3 +44,9 @@ go build -o host ./host
 ### Run host
 ./host
 
+## Yaegi Scription Approach
+
+go mod tidy
+
+go run host/main.go
+
