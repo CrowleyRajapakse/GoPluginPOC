@@ -50,3 +50,19 @@ go mod tidy
 
 go run host/main.go
 
+# Custom Plugin Loader
+
+## 1. Build plugins
+cd plugins/addheader
+go build -o ../../bin/addheader
+cd ../removeheader
+go build -o ../../bin/removeheader
+
+## 2. Build host
+cd ../../host
+go build -o host
+
+## 3. Run
+cd ../../host
+./host
+
