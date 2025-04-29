@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/uuid" // v1.1.1
 )
 
 type stdioRW struct {
@@ -33,19 +35,18 @@ type RemoveArgs struct {
 	Headers Headers
 }
 
-// loadPlugin starts the binary at path and returns an RPC client + the cmd handle
 func loadPlugin(path string) (*rpc.Client, *exec.Cmd) {
 	cmd := exec.Command(path)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatalf("error opening stdin pipe for %s: %v", path, err)
+		log.Fatalf("stdin pipe: %v", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatalf("error opening stdout pipe for %s: %v", path, err)
+		log.Fatalf("stdout pipe: %v", err)
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("error starting plugin %s: %v", path, err)
+		log.Fatalf("start %s: %v", path, err)
 	}
 	rw := &stdioRW{in: stdout, out: stdin}
 	client := rpc.NewClientWithCodec(jsonrpc.NewClientCodec(rw))
@@ -54,68 +55,56 @@ func loadPlugin(path string) (*rpc.Client, *exec.Cmd) {
 
 func main() {
 	pluginDir := "./plugins"
-
 	entries, err := os.ReadDir(pluginDir)
 	if err != nil {
-		log.Fatalf("failed to read plugin dir %q: %v", pluginDir, err)
+		log.Fatalf("read dir: %v", err)
 	}
 
-	// keep track of clients + cmds so we can clean up
-	var (
-		clients   []*rpc.Client
-		cmds      []*exec.Cmd
-		pluginIDs []string
-	)
+	// initial headers with host-generated UUID
+	headers := Headers{"RequestID": uuid.New().String()}
 
-	// 1) scan & load every executable in pluginDir
+	var clients []*rpc.Client
+	var cmds []*exec.Cmd
+
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		fullPath := filepath.Join(pluginDir, e.Name())
-		// optional: skip non-executable files
-		if info, err := os.Stat(fullPath); err != nil || info.Mode()&0111 == 0 {
+		path := filepath.Join(pluginDir, e.Name())
+		info, _ := os.Stat(path)
+		if info.Mode()&0111 == 0 {
 			continue
 		}
-
-		client, cmd := loadPlugin(fullPath)
+		client, cmd := loadPlugin(path)
 		clients = append(clients, client)
 		cmds = append(cmds, cmd)
-		pluginIDs = append(pluginIDs, e.Name())
-	}
-
-	// 2) demo: for each plugin, decide which RPC to call by filename
-	initial := Headers{"User-Agent": "golang"}
-	for i, name := range pluginIDs {
-		client := clients[i]
 
 		switch {
-		case strings.Contains(name, "addheader"):
+		case strings.Contains(e.Name(), "addheader"):
 			var out Headers
-			args := AddArgs{Key: "X-Trace-Id", Value: "abc123", Headers: initial}
+			args := AddArgs{Key: "X-Trace-Id", Value: "", Headers: headers}
 			if err := client.Call("Plugin.Add", args, &out); err != nil {
-				log.Printf("[%s] Add error: %v", name, err)
+				log.Printf("Add error: %v", err)
 			} else {
-				fmt.Printf("[%s] after Add: %#v\n", name, out)
-				initial = out
+				fmt.Printf("[%s] after Add: %#v\n", e.Name(), out)
+				headers = out
 			}
 
-		case strings.Contains(name, "removeheader"):
+		case strings.Contains(e.Name(), "removeheader"):
 			var out Headers
-			args := RemoveArgs{Key: "User-Agent", Headers: initial}
+			args := RemoveArgs{Key: "RequestID", Headers: headers}
 			if err := client.Call("Plugin.Remove", args, &out); err != nil {
-				log.Printf("[%s] Remove error: %v", name, err)
+				log.Printf("Remove error: %v", err)
 			} else {
-				fmt.Printf("[%s] after Remove: %#v\n", name, out)
-				initial = out
+				fmt.Printf("[%s] after Remove: %#v\n", e.Name(), out)
+				headers = out
 			}
 
 		default:
-			log.Printf("unknown plugin %q; skipping", name)
+			log.Printf("skipping %q", e.Name())
 		}
 	}
 
-	// 3) cleanup
 	for _, c := range clients {
 		c.Close()
 	}

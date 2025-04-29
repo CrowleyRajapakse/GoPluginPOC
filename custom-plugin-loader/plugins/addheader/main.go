@@ -4,35 +4,37 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
+
+	"github.com/google/uuid" // v1.3.0
 )
 
-// stdioReadWriteCloser lets us treat stdin/stdout as one ReadWriteCloser
-type stdioReadWriteCloser struct {
+type stdioRW struct {
 	in  *os.File
 	out *os.File
 }
 
-func (s *stdioReadWriteCloser) Read(p []byte) (n int, err error)  { return s.in.Read(p) }
-func (s *stdioReadWriteCloser) Write(p []byte) (n int, err error) { return s.out.Write(p) }
-func (s *stdioReadWriteCloser) Close() error                      { return nil }
+func (s *stdioRW) Read(p []byte) (n int, err error)  { return s.in.Read(p) }
+func (s *stdioRW) Write(p []byte) (n int, err error) { return s.out.Write(p) }
+func (s *stdioRW) Close() error                      { return nil }
 
-// Headers is just a map of string→string
 type Headers map[string]string
 
-// Args passed in for adding a header
 type Args struct {
 	Key     string
 	Value   string
 	Headers Headers
 }
 
-// Plugin exposes an Add method
 type Plugin struct{}
 
 func (p *Plugin) Add(args Args, reply *Headers) error {
 	h := args.Headers
 	if h == nil {
 		h = make(Headers)
+	}
+	// if no value provided, generate a UUID
+	if args.Value == "" {
+		args.Value = uuid.New().String()
 	}
 	h[args.Key] = args.Value
 	*reply = h
@@ -41,8 +43,6 @@ func (p *Plugin) Add(args Args, reply *Headers) error {
 
 func main() {
 	rpc.RegisterName("Plugin", new(Plugin))
-	stdio := &stdioReadWriteCloser{os.Stdin, os.Stdout}
-
-	// <-- CORRECTED: ServeCodec is in net/rpc, not jsonrpc
+	stdio := &stdioRW{os.Stdin, os.Stdout}
 	rpc.ServeCodec(jsonrpc.NewServerCodec(stdio))
 }
