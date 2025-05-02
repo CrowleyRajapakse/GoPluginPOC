@@ -57,6 +57,8 @@ cd plugins/addheader
 go build -o ../../bin/addheader
 cd ../removeheader
 go build -o ../../bin/removeheader
+cd ../addremoveheader
+go build -o ../../bin/addremoveheader
 
 ## 2. Build host
 cd ../../host
